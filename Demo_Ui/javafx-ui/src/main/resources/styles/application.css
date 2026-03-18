@@ -1,0 +1,251 @@
+/* ========================================
+   Aplikacja Harmonogramowania HFS - Style
+   Autor: Bartłomiej Kuk
+   ======================================== */
+
+/* Ogólne style */
+.root {
+    -fx-background-color: #f5f5f5;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+}
+
+/* Logo PWR */
+.logo-text {
+    -fx-font-size: 36px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #c8102e;  /* Kolor PWR */
+}
+
+/* Tytuły */
+.title-text {
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.section-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #444444;
+}
+
+/* Przyciski menu głównego */
+.menu-button {
+    -fx-background-color: white;
+    -fx-border-color: #cccccc;
+    -fx-border-width: 2px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 2);
+    -fx-cursor: hand;
+}
+
+.menu-button:hover {
+    -fx-background-color: #f8f8f8;
+    -fx-border-color: #c8102e;
+    -fx-effect: dropshadow(three-pass-box, rgba(200,16,46,0.3), 15, 0, 0, 3);
+}
+
+.menu-button:pressed {
+    -fx-background-color: #eeeeee;
+    -fx-translate-y: 2px;
+}
+
+.button-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.button-description {
+    -fx-font-size: 12px;
+    -fx-text-fill: #666666;
+}
+
+/* Przyciski algorytmów */
+.algorithm-button {
+    -fx-background-color: white;
+    -fx-border-color: #cccccc;
+    -fx-border-width: 2px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 2);
+    -fx-cursor: hand;
+}
+
+.algorithm-button:hover {
+    -fx-background-color: #fff8f9;
+    -fx-border-color: #c8102e;
+    -fx-effect: dropshadow(three-pass-box, rgba(200,16,46,0.3), 15, 0, 0, 3);
+}
+
+.algorithm-button:pressed {
+    -fx-background-color: #ffe8eb;
+    -fx-translate-y: 2px;
+}
+
+.algorithm-name {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.algorithm-description {
+    -fx-font-size: 11px;
+    -fx-text-fill: #666666;
+}
+
+/* Standardowe przyciski */
+.primary-button {
+    -fx-background-color: #c8102e;
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 10px 30px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+}
+
+.primary-button:hover {
+    -fx-background-color: #a00d25;
+}
+
+.primary-button:pressed {
+    -fx-background-color: #800a1d;
+}
+
+.secondary-button {
+    -fx-background-color: white;
+    -fx-text-fill: #c8102e;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 10px 30px;
+    -fx-border-color: #c8102e;
+    -fx-border-width: 2px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+}
+
+.secondary-button:hover {
+    -fx-background-color: #fff8f9;
+}
+
+.secondary-button:pressed {
+    -fx-background-color: #ffe8eb;
+}
+
+.back-button {
+    -fx-background-color: #eeeeee;
+    -fx-text-fill: #333333;
+    -fx-font-size: 14px;
+    -fx-padding: 10px 25px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+}
+
+.back-button:hover {
+    -fx-background-color: #dddddd;
+}
+
+.action-button {
+    -fx-background-color: white;
+    -fx-text-fill: #333333;
+    -fx-font-size: 13px;
+    -fx-padding: 12px 20px;
+    -fx-border-color: #cccccc;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+    -fx-min-width: 150px;
+}
+
+.action-button:hover {
+    -fx-background-color: #f8f8f8;
+    -fx-border-color: #c8102e;
+}
+
+/* Pola tekstowe */
+.text-field {
+    -fx-font-size: 14px;
+    -fx-padding: 8px;
+    -fx-border-color: #cccccc;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+.text-field:focused {
+    -fx-border-color: #c8102e;
+    -fx-border-width: 2px;
+}
+
+/* Etykiety */
+.info-text {
+    -fx-font-size: 16px;
+    -fx-text-fill: #555555;
+}
+
+.info-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.result-value {
+    -fx-font-size: 32px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #c8102e;
+}
+
+.result-info {
+    -fx-font-size: 14px;
+    -fx-text-fill: #666666;
+}
+
+.help-text {
+    -fx-font-size: 11px;
+    -fx-text-fill: #999999;
+    -fx-font-style: italic;
+}
+
+.footer-text {
+    -fx-font-size: 12px;
+    -fx-text-fill: #888888;
+}
+
+.placeholder-text {
+    -fx-font-size: 14px;
+    -fx-text-fill: #999999;
+    -fx-text-alignment: center;
+}
+
+/* Progress Indicator */
+.progress-indicator {
+    -fx-progress-color: #c8102e;
+}
+
+/* ScrollPane */
+.scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* Alerts */
+.alert {
+    -fx-background-color: white;
+}
+
+.alert .header-panel {
+    -fx-background-color: #c8102e;
+}
+
+.alert .header-panel .label {
+    -fx-text-fill: white;
+}
