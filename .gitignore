@@ -1,0 +1,42 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Java
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Results and temporary files
+results/*.png
+results/*.json
+!results/.gitkeep
+data/input_*.json
+!data/.gitkeep
+!data/default.json
+!data/README.md
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+NUL
+
+# Claude
+.claude/
