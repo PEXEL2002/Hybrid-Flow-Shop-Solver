@@ -114,6 +114,8 @@ Run tests:
 pytest
 ```
 
+For a detailed testing guide (test structure, scripts, coverage, and troubleshooting), see [TESTING.md](TESTING.md).
+
 Optional helpers available in this module:
 
 - `run_tests.bat`
