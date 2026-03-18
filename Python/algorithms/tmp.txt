@@ -1,0 +1,177 @@
+\subsection{Reprezentacja danych i algorytmy}
+
+Wspólnym elementem dla wszystkich algorytmów optymalizacyjnych zaimplementowanych w systemie jest klasa \texttt{Schedule}, która reprezentuje instancję problemu w kontekście optymalizacji kombinatorycznej. Klasa ta, umieszczona w pakiecie \texttt{core/}, przechowuje wszystkie parametry statyczne definiujące problem: liczbę zadań $n$, liczbę etapów produkcyjnych $s$, rozkład maszyn na etapach $(m_1, m_2, ..., m_s)$, macierz czasów przezbrojeń zależnych od kolejności (SDST) oraz współczynnik uczenia się $\alpha \in (0, 1]$. Rozwiązanie problemu jest reprezentowane jako permutacja zadań $\pi = (j_1, j_2, ..., j_n)$, która określa globalną kolejność wykonywania zadań w systemie produkcyjnym.
+
+Macierz SDST przechowywana jest jako dwuwymiarowa struktura danych \texttt{setup\_times[j][j']}, która zwraca czas przezbrojenia wymagany przy przejściu z wykonywania zadania $j$ na zadanie $j'$. Czasy przetwarzania operacji reprezentowane są jako macierz trójwymiarowa \texttt{processing\_times[stage][job][machine]}, umożliwiająca reprezentację heterogenicznych czasów wykonania w zależności od etapu, zadania i konkretnej maszyny. System umożliwia tworzenie głębokich kopii (deep copy) instancji problemu, co pozwala algorytmom na niezależne eksperymenty z różnymi konfiguracjami bez ryzyka naruszenia stanu oryginalnych danych. Python, otrzymując na wejściu plik w formacie JSON, parsuje te dane i automatycznie tworzy odpowiednią strukturę obiektową, inicjalizując obiekty reprezentujące zadania (\texttt{Job}) oraz maszyny (\texttt{Machine}).
+
+\begin{lstlisting}[language=Python, caption={Kluczowe atrybuty klasy Schedule odpowiedzialne za przechowywanie parametrów instancji problemu HFS-SDST z efektem uczenia}, label={lst:schedule_attributes}, numbers=left]
+class Schedule:
+    def __init__(self):
+        self._raw_data = None           # surowe dane z JSON
+        self.jobs = []                  # lista obiektow Job
+        self.machines = []              # lista obiektow Machine
+        self.schedule = []              # lista operacji (setup/operation)
+        self.num_stages = 0
+        self.machines_per_stage = []
+        self.Cmax = 0.0
+        self.learning_coeff = 0.0       # wspolczynnik uczenia (alpha)
+
+    def load_from_json(self, file_path):
+        with open(file_path, "r") as f:
+            data = json.load(f)
+        self._raw_data = data
+        self.num_stages = data["num_stages"]
+        self.machines_per_stage = data["machines_per_stage"]
+        self.learning_coeff = data.get("learning_coefficient", 0.0)
+        self.setup_times = data["setup_times"]
+        self.processing_times = data["processing_times"]
+
+        # Utworzenie obiektow Job i Machine
+        self.jobs = [
+            Job(j, self.processing_times[j], self.setup_times)
+            for j in range(len(self.processing_times))
+        ]
+        self.machines = [
+            [Machine(stage_id=s, machine_id=m,
+                     is_learning=self.learning_stages[s] == "1")
+             for m in range(self.machines_per_stage[s])]
+            for s in range(self.num_stages)
+        ]
+\end{lstlisting}
+
+Jak widać w Listingu \ref{lst:schedule_attributes}, struktura danych wyraźnie oddziela parametry problemu (stałe dla danej instancji) od reprezentacji rozwiązania i stanu wykonania. Atrybut \texttt{schedule} przechowuje zbudowany harmonogram w formie listy operacji, podczas gdy \texttt{Cmax} reprezentuje wartość funkcji celu dla bieżącego rozwiązania.
+
+Kluczowym mechanizmem obliczeniowym całego systemu jest metoda \texttt{build\_from\_sequence()}, pełniąca rolę \textbf{dekodera} (ang. \textit{decoder}) w terminologii optymalizacji kombinatorycznej. Funkcja ta transformuje abstrakcyjną permutację zadań $\pi$ w konkretny harmonogram produkcyjny z precyzyjnie określonymi czasami startu i zakończenia każdej operacji oraz przydziałami do maszyn. Dla każdego etapu $i$ i zadania $j$ metoda przydziela maszynę $m_k$ według reguły minimalizacji czasu dostępności (ang. \textit{earliest available machine}), co stanowi standardową strategię w problemach szeregowania przepływowego. Podczas konstrukcji harmonogramu funkcja dynamicznie uwzględnia dwa kluczowe zjawiska definiujące rozważany problem: czasy przezbrojeń zależne od kolejności (SDST) oraz efekt uczenia się maszyn. Metoda zwraca wartość funkcji celu $C_{max}$ (czas zakończenia ostatniej operacji w systemie), która stanowi podstawę oceny jakości rozwiązania. Ta funkcja stanowi wspólny fundament dla wszystkich algorytmów optymalizacyjnych — niezależnie od metody generowania permutacji (Branch and Bound, MinSTF, Tabu Search), każda z nich wykorzystuje \texttt{build\_from\_sequence()} do oceny jakości rozwiązania.
+
+Implementacja \texttt{build\_from\_sequence()} musi precyzyjnie uwzględniać mechanizmy obliczeniowe dla obu kluczowych zjawisk problemu. W przypadku czasów przezbrojeń zależnych od kolejności, dla każdej maszyny $m_k$ na etapie $i$ system śledzi ostatnio wykonane zadanie $j_{prev}$ poprzez atrybut \texttt{last\_job} w obiekcie \texttt{Machine}. Przed rozpoczęciem operacji zadania $j_{curr}$ obliczany jest czas przezbrojenia $ST(j_{prev}, j_{curr})$ z macierzy \texttt{setup\_times}. Czas ten doliczany jest do czasu dostępności maszyny zgodnie z zależnością: $t_{available} = \max(t_{available}, t_{operation\_end}) + ST(j_{prev}, j_{curr})$. W przypadku pierwszej operacji na danej maszynie (gdy $j_{prev} = \texttt{None}$), system wykorzystuje wartość $ST(j_{curr}, j_{curr})$ z macierzy przezbrojeń, co reprezentuje czas przygotowania maszyny do rozpoczęcia produkcji zadania $j_{curr}$ bez poprzedniego kontekstu operacyjnego.
+
+Efekt uczenia się implementowany jest poprzez modyfikację czasów przetwarzania operacji w zależności od pozycji w sekwencji wykonanych operacji na danej maszynie. Czas wykonania $r$-tej operacji na maszynie jest modyfikowany według formuły: $P'_{r} = P_{base} \cdot r^{-\alpha}$, gdzie $P_{base}$ oznacza bazowy czas operacji z macierzy \texttt{processing\_times}, $r$ to pozycja operacji (liczba zadań już wykonanych na tej maszynie plus jeden), a $\alpha$ to współczynnik uczenia się. Im więcej operacji wykonano wcześniej na danej maszynie, tym silniejszy efekt redukcji czasu (dla $\alpha > 0$). System musi osobno śledzić licznik wykonanych operacji dla każdej maszyny (atrybut \texttt{processed\_jobs}), ponieważ efekt uczenia jest zjawiskiem lokalnym — doświadczenie nabyte na jednej maszynie nie transferuje się na inne maszyny, nawet w ramach tego samego etapu produkcyjnego.
+
+\begin{lstlisting}[language=Python, caption={Fragment metody build\_from\_sequence() ilustrujący implementację SDST i efektu uczenia się w procesie konstrukcji harmonogramu}, label={lst:build_from_sequence}, numbers=left]
+def build_from_sequence(self, sequence):
+    """
+    Buduje pelny harmonogram dla zadanej permutacji zadan.
+    Zwraca C_max.
+    """
+    self._reset_runtime_state()  # czysci stan maszyn i jobów
+
+    for j in sequence:
+        job = self.jobs[j]
+        prev_stage_end = 0.0
+
+        for s in range(self.num_stages):
+            # Wybierz maszyne o najwczesniejszej dostepnosci
+            m = min(range(self.machines_per_stage[s]),
+                   key=lambda k: self.machines[s][k].available_time)
+            machine = self.machines[s][m]
+
+            # Zapamiętaj poprzednie zadanie (do SDST)
+            prev_job = machine.last_job
+
+            # === SDST: Oblicz czas przezbrojenia ===
+            setup_dur = job.get_setup_time(prev_job, s, m)
+            setup_start = machine.available_time
+            setup_end = machine.start_setup(setup_start, setup_dur)
+
+            # === Efekt uczenia: Modyfikacja czasu operacji ===
+            base_time = job.get_processing_time(s, m)
+            # Oblicz efektywny czas z uwzgl. uczenia na maszynie
+            proc_time = machine.compute_processing_time(
+                base_time, self.learning_coeff
+            )
+
+            # Operation start: po setupie i po zakonczeniu poprzedniego etapu
+            proc_start = max(setup_end, prev_stage_end)
+            proc_end = machine.start_processing(job.id, proc_start, proc_time)
+
+            # Zapis operacji do harmonogramu
+            self.add_operation("setup", from_job=prev_job, to_job=job.id,
+                             stage=s, machine=m,
+                             start=setup_start, end=setup_end)
+            self.add_operation("operation", job=job.id, stage=s, machine=m,
+                             start=proc_start, end=proc_end)
+
+            prev_stage_end = proc_end
+
+    self.Cmax = self.compute_Cmax()
+    return self.Cmax
+\end{lstlisting}
+
+Listing \ref{lst:build_from_sequence} pokazuje kluczowy fragment logiki szeregowania w środowisku Hybrid Flow Shop. Widoczne jest wyraźne rozdzielenie obliczeń dla SDST (linie 21-24) i efektu uczenia się (linie 26-30), co ułatwia weryfikację poprawności implementacji i potencjalne rozszerzenia systemu o dodatkowe zjawiska produkcyjne. Metoda \texttt{compute\_processing\_time()} w klasie \texttt{Machine} enkapsuluje logikę uczenia się, wykorzystując wewnętrzny licznik \texttt{processed\_jobs} do obliczenia wartości $r$ w formule $P'_{r} = P_{base} \cdot r^{-\alpha}$.
+
+Algorytm Branch and Bound (B\&B), zaimplementowany w module \texttt{algorithms/branch\_and\_bound.py}, stanowi jedyną metodę gwarantującą znalezienie rozwiązania optymalnego w rozważanym problemie HFS z SDST i efektem uczenia się. Każdy węzeł w drzewie przeszukiwania reprezentuje częściową permutację zadań: $\pi_{partial} = (j_1, ..., j_k)$, gdzie $k < n$. Węzeł korzenia odpowiada pustej permutacji ($k=0$), podczas gdy węzły liści reprezentują permutacje pełne ($k=n$). Rozgałęzienie (ang. \textit{branching}) polega na dopisaniu do $\pi_{partial}$ każdego z dotychczas nieprzypisanych zadań, generując tym samym $n-k$ węzłów potomnych.
+
+Kluczowym mechanizmem zapewniającym praktyczną użyteczność B\&B jest kryterium odcięcia (ang. \textit{pruning}) oparte na funkcji dolnego oszacowania (Lower Bound, LB). Dla każdego węzła obliczane jest dolne oszacowanie wartości $C_{max}$ dla wszystkich rozwiązań rozszerzających daną częściową permutację. Jeśli $LB(\pi_{partial}) \geq C_{max}^{best}$, gdzie $C_{max}^{best}$ oznacza najlepsze dotychczas znalezione rozwiązanie, węzeł jest odcinany — algorytm nie eksploruje jego potomków, ponieważ matematycznie niemożliwe jest uzyskanie rozwiązania lepszego niż aktualne najlepsze. Bez mechanizmu dolnego oszacowania algorytm degeneruje się do naiwnego przeszukiwania wszystkich $n!$ permutacji, co czyni go niepraktycznym już dla $n > 12$ zadań.
+
+W zaimplementowanej wersji algorytmu zastosowano oszacowanie dolne oparte na maksymalnym obciążeniu pojedynczej maszyny dla zadań z częściowej permutacji. Dla każdej maszyny obliczana jest suma czasów operacji i przezbrojeń zadań należących do $\pi_{partial}$, a następnie wybierane jest maksimum z tych wartości. Oszacowanie to jest admisyjne (nie nadocenia rzeczywistego $C_{max}$), ponieważ pomija zależności między etapami oraz ograniczenia precedencji wymagające ukończenia operacji na wcześniejszych etapach przed rozpoczęciem kolejnych. Bardziej zaawansowane funkcje dolnego oszacowania uwzględniające pełną strukturę HFS oraz dynamikę SDST i efektu uczenia mogłyby zwiększyć moc odcinającą algorytmu, jednak ich złożoność obliczeniowa często przewyższa korzyści z redukcji przestrzeni przeszukiwania. Mimo zastosowania mechanizmu odcinania, złożoność B\&B pozostaje wykładnicza względem $n$. Testy wydajnościowe przedstawione w rozdziale 6 pokazują, że algorytm jest praktycznie użyteczny jedynie dla instancji z $n \leq 10$ zadań, gdzie czas obliczeń nie przekracza 5 minut.
+
+Heurystyka MinSTF (Min Setup Time First), zaimplementowana w module \texttt{algorithms/greedy.py}, reprezentuje skrajnie przeciwną filozofię projektową: rezygnację z gwarancji optymalności na rzecz szybkości konstrukcji rozwiązania. Algorytm buduje permutację sekwencyjnie, w każdym kroku wybierając zadanie minimalizujące średni czas przezbrojenia względem ostatnio przypisanego zadania w permutacji. Dla pierwszego zadania stosowana jest reguła deterministyczna: wybierane jest zadanie o minimalnym self-setupie $ST(j,j)$, reprezentującym czas przygotowania maszyny do wykonania zadania $j$. W kolejnych krokach decyzja jest czysto zachłanna — algorytm nie uwzględnia globalnych konsekwencji dla $C_{max}$, jedynie lokalną minimalizację kosztu przezbrojenia. Formalnie, dla częściowej permutacji $\pi_{partial} = (j_1, ..., j_k)$, algorytm wybiera jako $(k+1)$-te zadanie:
+\begin{equation*}
+j_{k+1} = \arg\min_{j \in R} \overline{ST}(j_k, j), \quad \text{gdzie} \quad \overline{ST}(j_k, j) = \frac{1}{|S \times M|} \sum_{s=1}^{S} \sum_{m=1}^{m_s} ST_{s,m}(j_k, j),
+\end{equation*}
+przy czym $R$ oznacza zbiór pozostałych nieprzypisanych zadań, $S$ to liczba etapów, $M$ to zbiór wszystkich maszyn we wszystkich etapach, a $ST_{s,m}(j_k, j)$ to czas przezbrojenia z zadania $j_k$ na $j$ na maszynie $m$ w etapie $s$. Używanie średniego (a nie sumarycznego) czasu przezbrojenia normalizuje wartości względem liczby maszyn i etapów, zapobiegając uprzywilejowaniu konfiguracji z większą liczbą zasobów. Po skonstruowaniu pełnej permutacji $\pi$ wywoływana jest funkcja \texttt{build\_from\_sequence}($\pi$) w celu konstrukcji rzeczywistego harmonogramu i obliczenia wartości $C_{max}$.
+
+Główną zaletą MinSTF jest złożoność czasowa $O(n^2)$ — konstrukcja permutacji dla 100 zadań trwa poniżej 1 sekundy na standardowym sprzęcie. Dodatkowo algorytm nie wymaga parametrów sterujących (w przeciwieństwie do metaheurystyk typu Tabu Search), co czyni go łatwym w użyciu. Istotną wadą jest ignorowanie struktury Hybrid Flow Shop — algorytm koncentruje się wyłącznie na minimalizacji SDST, nie uwzględniając efektu uczenia się ani dostępności maszyn na różnych etapach. W konsekwencji jakość rozwiązania może być arbitralnie daleka od optymalnej; nie istnieją gwarancje aproksymacji typu $C_{max}^{MSTF} \leq \rho \cdot C_{max}^{OPT}$ dla żadnej stałej $\rho$. MinSTF pełni w systemie dwie kluczowe role: stanowi rozwiązanie początkowe dla algorytmu Tabu Search (przyspieszając jego zbieżność) oraz służy jako baseline do oceny skuteczności metod bardziej zaawansowanych w testach porównawczych przedstawionych w rozdziale 6.
+
+Algorytm Tabu Search (TS), zaimplementowany w module \texttt{algorithms/tabu\_search.py}, stanowi kompromis między jakością rozwiązania a czasem obliczeń, wykorzystując przeszukiwanie sąsiedztwa z mechanizmem pamięci krótkoterminowej. Przestrzeń sąsiedztwa zdefiniowana jest przez operator \textbf{Swap}: dla permutacji $\pi = (j_1, ..., j_n)$ sąsiad $\pi' \in N(\pi)$ powstaje przez zamianę pozycji dwóch zadań $j_i$ i $j_k$, gdzie $i \neq k$. Rozmiar sąsiedztwa dla permutacji $n$ zadań wynosi zatem $\binom{n}{2} = \frac{n(n-1)}{2}$. W każdej iteracji algorytmu generowane są wszystkie sąsiedzi (strategia pełnego sąsiedztwa), co dla $n=20$ zadań daje 190 permutacji do oceny. Dla każdego sąsiada obliczane jest $C_{max}$ przez wywołanie \texttt{build\_from\_sequence()}, co stanowi dominujący koszt obliczeniowy iteracji.
+
+Lista Tabu przechowuje ostatnio wykonane ruchy w formie par $(i, j)$ reprezentujących pozycje zamienionych zadań w permutacji. Ruch jest uznawany za zakazany, jeśli para $(i, j)$ lub symetryczna para $(j, i)$ znajduje się na liście. Długość listy, zwana tenure i oznaczana symbolem $\tau$, ustalono eksperymentalnie na $\tau = \lfloor\sqrt{n}\rfloor$, co jest typową wartością heurystyczną w literaturze Tabu Search dla problemów permutacyjnych. Lista implementowana jest jako słownik (ang. \textit{dictionary}) z kluczami $(i,j)$ i wartościami będącymi numerem iteracji wygaśnięcia zakazu: \texttt{tabu\_list[(i,j)] = current\_iteration + tenure}. Mechanizm ten zapobiega cyklom — powrotom do niedawno odwiedzonych rozwiązań, co jest kluczowe dla eksploracji przestrzeni rozwiązań poza lokalnymi minimami.
+
+Kryterium aspiracji pozwala na akceptację ruchu zabronionego w sytuacji wyjątkowej. Ruch znajdujący się na liście Tabu jest akceptowany, jeśli prowadzi do rozwiązania lepszego niż dotychczasowe globalne najlepsze: $C_{max}(\pi') < C_{max}^{global\_best}$. Jest to standardowe kryterium aspiracji stosowane w implementacjach TS, zapobiegające odrzuceniu wyjątkowo dobrych rozwiązań tylko dlatego, że ruch do nich prowadzący jest formalnie zakazany. W implementacji nie zastosowano dodatkowych kryteriów aspiracji opartych na wieku ruchu czy częstotliwości odwiedzin, co mogłoby dodatkowo zwiększyć zdolność algorytmu do ucieczki z obszarów suboptymanych.
+
+\begin{lstlisting}[language=Python, caption={Fragment implementacji Tabu Search pokazujący generator sąsiedztwa oraz logikę obsługi listy Tabu z kryterium aspiracji}, label={lst:tabu_search}, numbers=left]
+def _generate_neighborhood(self, sequence):
+    """Generuje wszystkich sasiadow przez operator Swap"""
+    neighbors = []
+    n = len(sequence)
+    for i in range(n):
+        for j in range(i + 1, n):
+            neighbor = sequence.copy()
+            neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+            neighbors.append((neighbor, (i, j)))
+    return neighbors
+
+def _select_best_neighbor(self, neighbors, current_sequence,
+                          global_best_cmax, current_iteration):
+    """Wybiera najlepszego sasiada z uwzglednieniem listy tabu i kryterium aspiracji"""
+    best_neighbor = None
+    best_cmax = float('inf')
+    best_move = None
+
+    for neighbor_seq, move in neighbors:
+        # Sprawdz czy ruch jest na liscie tabu
+        if self._is_tabu(move, current_iteration):
+            neighbor_cmax = self.schedule.build_from_sequence(neighbor_seq)
+
+            # Kryterium aspiracji: pozwól na ruch tabu jesli poprawia globalne best
+            if neighbor_cmax < global_best_cmax:
+                if neighbor_cmax < best_cmax:
+                    best_neighbor = neighbor_seq
+                    best_cmax = neighbor_cmax
+                    best_move = move
+            continue  # Nie spelnia aspiracji - pomin
+
+        # Ruch nie jest tabu - ocen go normalnie
+        neighbor_cmax = self.schedule.build_from_sequence(neighbor_seq)
+        if neighbor_cmax < best_cmax:
+            best_neighbor = neighbor_seq
+            best_cmax = neighbor_cmax
+            best_move = move
+
+    return best_neighbor, best_cmax, best_move
+
+def _is_tabu(self, move, current_iteration):
+    """Sprawdza czy dany ruch znajduje sie na liscie tabu"""
+    i, j = move
+    for m in [(i, j), (j, i)]:
+        if m in self.tabu_list:
+            if current_iteration < self.tabu_list[m]:
+                return True
+    return False
+\end{lstlisting}
+
+Listing \ref{lst:tabu_search} ilustruje kluczowe komponenty implementacji TS. Funkcja \texttt{\_generate\_neighborhood()} tworzy pełne sąsiedztwo o rozmiarze $\binom{n}{2}$, zwracając listę krotek zawierających zarówno permutację sąsiada, jak i ruch, który do niej prowadzi (potrzebny do aktualizacji listy Tabu). Funkcja \texttt{\_select\_best\_neighbor()} integruje obsługę listy Tabu z kryterium aspiracji — najpierw sprawdza status Tabu ruchu (linie 20-28), a następnie, jeśli ruch jest dozwolony lub spełnia kryterium aspiracji, ocenia go przez wywołanie dekodera (linie 32-37).
+
+Algorytm kończy pracę po wykonaniu maksymalnej liczby iteracji (parametr \texttt{max\_iter}, domyślnie $100 \cdot n$) lub po $k$ iteracjach bez poprawy globalnie najlepszego rozwiązania (parametr \texttt{no\_improve\_limit}, domyślnie $10 \cdot n$). Wartości te ustalono na podstawie testów wstępnych, balansując między czasem wykonania a jakością rozwiązania. Złożoność czasowa pojedynczej iteracji wynosi $O(n^2 \cdot T_{decode})$, gdzie $T_{decode}$ to koszt wywołania \texttt{build\_from\_sequence()}. Dla całego algorytmu złożoność wynosi $O(k \cdot n^2 \cdot T_{decode})$, gdzie $k$ to liczba wykonanych iteracji. W praktyce dla instancji z $n=20$ zadań i domyślnych parametrów algorytm wykonuje się w czasie 10-30 sekund, co prezentowane jest szczegółowo w rozdziale 6.
+
+Rozwiązanie początkowe dla TS generowane jest za pomocą wariantu heurystyki MinSTF z losowym wyborem pierwszego zadania, co wprowadza element różnorodności między kolejnymi uruchomieniami algorytmu dla tej samej instancji problemu. Alternatywnie system pozwala na użycie rozwiązania z deterministycznego MinSTF jako punktu startowego, co zapewnia lepszą powtarzalność wyników w testach porównawczych.
