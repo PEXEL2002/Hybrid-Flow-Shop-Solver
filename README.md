@@ -1,36 +1,97 @@
-# Aplikacja Harmonogramowania Produkcji HFS
+# Hybrid Flow Shop Solver (HFS-SDST)
 
-**Autor:** Bartłomiej Adam Kuk
-**Temat:** Aplikacja wspomagająca harmonogramowanie produkcji dla wybranego zagadnienia szeregowania zadań
+A production scheduling application for the Hybrid Flow Shop problem with sequence-dependent setup times (SDST) and learning effects.
 
-## Opis
+## About the Project
 
-Aplikacja do harmonogramowania produkcji dla problemu Hybrid Flow Shop z sekwencyjnie-zależnymi czasami przezbrojeń (HFS-SDST) z efektem uczenia się.
+The project combines:
 
-## Wymagania
+- a JavaFX UI layer for instance definition and result presentation,
+- a Python optimization engine,
+- JSON-based data exchange through `data/` and `results/`.
 
-- **Java** 17 lub nowsza - [Pobierz tutaj](https://adoptium.net/)
-- **Maven** 3.6+ - [Pobierz tutaj](https://maven.apache.org/download.cgi)
-- **Python** 3.8+ - [Pobierz tutaj](https://www.python.org/downloads/)
+The main objective is to minimize $C_{max}$, the completion time of the last job (makespan).
 
-## Szybkie uruchomienie
+## Scheduling Problem (Brief)
 
-### Windows
+The addressed problem is HFS-SDST:
 
-Uruchom plik `start.bat` w głównym folderze projektu:
+- **HFS (Hybrid Flow Shop)**: jobs pass through consecutive production stages, with multiple parallel machines available at each stage.
+- **SDST (Sequence-Dependent Setup Times)**: setup time depends on the order of jobs.
+- **Learning effect**: processing times may decrease with the job position in the sequence.
+
+In practice, this is a complex combinatorial optimization problem where schedule quality depends on both job sequencing and machine assignment.
+
+## Technology Stack
+
+![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk&logoColor=white)
+![JavaFX](https://img.shields.io/badge/JavaFX-21.0.1-0A4B8C)
+![Maven](https://img.shields.io/badge/Maven-3.6%2B-C71A36?logo=apachemaven&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python&logoColor=white)
+![Matplotlib](https://img.shields.io/badge/Matplotlib-enabled-11557C)
+![Pytest](https://img.shields.io/badge/Pytest-tests-0A9EDC?logo=pytest&logoColor=white)
+
+- **Java 17** - desktop application and UI logic.
+- **JavaFX 21.0.1** - user interface and result visualization.
+- **Maven 3.6+** - Java module build system.
+- **Python 3.8+** - optimization engine.
+- **Matplotlib** - Gantt chart generation.
+- **Pytest** - unit testing for the Python module.
+
+## Repository Architecture
+
+```text
+Hybrid-Flow-Shop-Solver/
+├── start.bat
+├── README.md
+├── Demo_Ui/
+│   ├── README.md
+│   └── javafx-ui/
+├── Python/
+│   ├── README.md
+│   ├── TESTING.md
+│   ├── main.py
+│   ├── algorithms/
+│   ├── core/
+│   ├── utils/
+│   └── tests/
+├── data/
+│   └── README.md
+└── results/
+```
+
+Module documentation:
+
+- UI: [Demo_Ui/README.md](Demo_Ui/README.md)
+- Python backend: [Python/README.md](Python/README.md)
+- Python tests: [Python/TESTING.md](Python/TESTING.md)
+- Input data: [data/README.md](data/README.md)
+
+## Available Algorithms
+
+- **Greedy MSTF** - fast baseline heuristic.
+- **Tabu Search** - metaheuristic with a strong quality/time tradeoff.
+- **Branch and Bound** - exact method, recommended for small instances.
+
+## Requirements
+
+- Java 17+
+- Maven 3.6+
+- Python 3.8+
+
+## Quick Start (Windows)
+
+From the project root:
 
 ```bash
 start.bat
 ```
 
-Skrypt automatycznie:
-1. Sprawdzi wszystkie wymagania
-2. Zainstaluje zależności Python
-3. Uruchomi aplikację
+The startup script prepares the environment and launches the application.
 
-### Ręczne uruchomienie
+## Manual Run
 
-#### 1. Instalacja zależności Python
+1. Install Python dependencies:
 
 ```bash
 cd Python
@@ -38,49 +99,28 @@ pip install -r requirements.txt
 cd ..
 ```
 
-#### 2. Uruchomienie aplikacji Java
+2. Start the JavaFX interface:
 
 ```bash
-cd Demo_UI/javafx-ui
-mvn javafx:run
+cd Demo_Ui/javafx-ui
+mvn clean javafx:run
 ```
 
-## Struktura projektu
+## Data Flow
 
-```
-inz/
-├── start.bat              # Skrypt uruchamiający całą aplikację
-├── README.md              # Ten plik
-├── Demo_UI/              # Interfejs graficzny (Java + JavaFX)
-│   ├── README.md         # Dokumentacja Demo_UI
-│   └── javafx-ui/
-│       └── src/          # Kod źródłowy aplikacji
-├── Python/               # Część obliczeniowa (algorytmy)
-│   ├── README.md         # Dokumentacja Python
-│   ├── main.py           # Główny skrypt Python
-│   ├── requirements.txt  # Zależności Python
-│   ├── algorithms/       # Implementacje algorytmów
-│   ├── core/             # Klasy bazowe
-│   └── utils/            # Narzędzia pomocnicze
-├── data/                 # Folder na dane wejściowe (pliki JSON)
-└── results/              # Folder na wyniki (JSON + diagramy PNG)
-```
+1. The user defines a problem instance in the UI.
+2. The UI writes input to `data/input_<timestamp>.json`.
+3. The Python module runs optimization.
+4. The result is written to `results/result.json`.
+5. The UI presents metrics and a Gantt chart.
 
-## Algorytmy
+## Input and Output Format
 
-Aplikacja implementuje następujące algorytmy:
-
-1. **Greedy MSTF** - algorytm zachłanny (Minimum Setup Time First)
-2. **Tabu Search** - przeszukiwanie tabu
-3. **Branch & Bound** - metoda podziału i ograniczeń
-
-## Format danych wejściowych
-
-Aplikacja przyjmuje dane w formacie JSON:
+Input example (JSON):
 
 ```json
 {
-  "algorithm": "bnb",
+  "algorithm": "tabu",
   "num_stages": 2,
   "num_jobs": 3,
   "machines_per_stage": [1, 2],
@@ -91,51 +131,45 @@ Aplikacja przyjmuje dane w formacie JSON:
 }
 ```
 
-## Format wyników
-
-Wyniki są zapisywane w pliku `result.json`:
+Output example (JSON):
 
 ```json
 {
   "time_in_ms": 3123,
-  "Algorithm": "Branch & Bound",
-  "gant_diagram": "<ścieżka do diagramu>",
+  "Algorithm": "Tabu Search",
   "C_max": 101.48,
+  "gant_diagram": "<path-to-png>",
   "schedule": [...]
 }
 ```
 
-## Workflow danych
+## Practical Guidance
 
-1. **Wprowadzanie danych** → Użytkownik wprowadza parametry w Demo_UI
-2. **Zapis instancji** → Dane zapisywane do `data/input_<timestamp>.json`
-3. **Wywołanie Pythona** → Demo_UI uruchamia `Python/main.py` z plikiem wejściowym
-4. **Optymalizacja** → Python wykonuje algorytm i zapisuje wyniki do `results/result.json`
-5. **Wizualizacja** → Demo_UI odczytuje wyniki i wyświetla użytkownikowi
+- Up to around 10 jobs: Branch and Bound can be considered.
+- Medium instances: Tabu Search is usually the best compromise.
+- Large instances: use Greedy for fast feasible solutions.
 
-## Problem HFS-SDST z efektem uczenia się
+## Testing
 
-- **HFS** = Hybrid Flow Shop (warsztaty przepływowe z maszynami równoległymi)
-- **SDST** = Sequence-Dependent Setup Times (czasy przezbrojeń zależne od sekwencji)
-- **Efekt uczenia się**: Im więcej zadań wykonano, tym szybciej są przetwarzane
+![Tests](https://img.shields.io/badge/Tests-159%20passed-brightgreen)
+![Coverage](https://img.shields.io/badge/Coverage-94%25-greenyellow)
 
-**Cel:** Minimalizacja C_max (czasu zakończenia ostatniego zadania)
+Unit test coverage is 94% for optimization-related code (Branch and Bound, Greedy, Tabu Search) and key domain classes (Job, Machine, Schedule).
 
-## Ograniczenia
+Quick command:
 
-- Maksymalna liczba zadań: **50**
-- Maksymalna liczba etapów: **20**
-- Algorytm B&B zalecany tylko dla ≤10 zadań (czas obliczeniowy rośnie wykładniczo)
+```bash
+cd Python
+python -m pytest tests -v
+```
 
-## Wsparcie techniczne
+Detailed testing and coverage guide: [Python/TESTING.md](Python/TESTING.md).
 
-W przypadku problemów sprawdź:
-1. Czy wszystkie wymagania są zainstalowane
-2. Czy Java, Maven i Python są dodane do PATH
-3. Logi w konsoli podczas uruchamiania
-4. Czy foldery `data/` i `results/` istnieją
+## Author
 
-## Licencja
+Bartłomiej Adam Kuk  
+Politechnika Wrocławska, Wydział Informatyki i Telekomunikacji
 
-Projekt stworzony na potrzeby pracy inżynierskiej.
-Politechnika Wrocławska © 2024
+## License
+
+Project prepared as part of an engineering thesis.
